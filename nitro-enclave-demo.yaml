@@ -1,0 +1,307 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+Description:  Nitro Enclave AI-ML Object Detection Demo. 
+
+Parameters:
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+
+Resources:
+  EndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow instances to get to SSM Systems Manager
+        VpcId: !Ref NitroEnclavesVPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 10.10.0.0/16
+
+  SSMEndpoint1:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+        PrivateDnsEnabled: true
+        SecurityGroupIds: 
+          - !Ref EndpointSecurityGroup
+        ServiceName: 
+          !Join
+            - ''
+            - - 'com.amazonaws.'
+              - !Ref AWS::Region
+              - '.ssm'
+        SubnetIds: 
+          - !Ref NitroEnclavesVPCPrivateSubnet
+        VpcEndpointType: Interface
+        VpcId: !Ref NitroEnclavesVPC
+
+  SSMEndpoint2:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+        PrivateDnsEnabled: true
+        SecurityGroupIds: 
+          - !Ref EndpointSecurityGroup
+        ServiceName: 
+          !Join
+            - ''
+            - - 'com.amazonaws.'
+              - !Ref AWS::Region
+              - '.ec2messages'
+        SubnetIds: 
+          - !Ref NitroEnclavesVPCPrivateSubnet
+        VpcEndpointType: Interface
+        VpcId: !Ref NitroEnclavesVPC
+
+  SSMEndpoint3:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+        PrivateDnsEnabled: true
+        SecurityGroupIds: 
+          - !Ref EndpointSecurityGroup
+        ServiceName: 
+          !Join
+            - ''
+            - - 'com.amazonaws.'
+              - !Ref AWS::Region
+              - '.ssmmessages'
+        SubnetIds: 
+          - !Ref NitroEnclavesVPCPrivateSubnet
+        VpcEndpointType: Interface
+        VpcId: !Ref NitroEnclavesVPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: InternetGatewayNitroEnclavesVPC
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref NitroEnclavesVPC
+
+  NitroEnclavesVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.10.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: "Nitro Enclaves VPC"
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref NitroEnclavesVPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.10.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${NitroEnclavesVPC} Public Subnet (AZ1)
+
+  NitroEnclavesVPCPrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref NitroEnclavesVPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.10.0.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${NitroEnclavesVPC} Private Subnet (AZ1)
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref NitroEnclavesVPC
+      Tags:
+        - Key: Name
+          Value: NitroEnclavesVPC Public Routes
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref NitroEnclavesVPC
+
+  DefaultPrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref NitroEnclavesVPCPrivateSubnet
+
+  NatGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway1EIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  IAMRoleSSM:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: 
+        !Sub
+          - 'SSM-access-${RandomGUID}'
+          - { RandomGUID: !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref AWS::StackId ]]]] }
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies: 
+        - PolicyName: "Allow-EC2Instance-KMS-Encrypt"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: "Allow"
+                Action: "kms:Encrypt"
+                Resource:
+                  - !GetAtt EnclaveKMSkey.Arn
+              - Effect: "Allow"
+                Action: "kms:Decrypt"
+                Resource:
+                  - !GetAtt EnclaveKMSkey.Arn
+              - Effect: "Allow"
+                Action: "kms:GenerateDataKey"
+                Resource:
+                  - !GetAtt EnclaveKMSkey.Arn
+
+  SSMInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties: 
+      InstanceProfileName: SSM_access
+      Path: "/"
+      Roles: 
+        - Ref: "IAMRoleSSM"
+
+  NitroEnclaveInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: m5.2xlarge
+      SubnetId: !Ref NitroEnclavesVPCPrivateSubnet
+      IamInstanceProfile: SSM_access
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 64
+      EnclaveOptions:
+        Enabled: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # install updates
+          yum update -y
+          amazon-linux-extras install aws-nitro-enclaves-cli -y
+          sudo yum install aws-nitro-enclaves-cli-devel -y
+      Tags:
+        - Key: Name
+          Value: !Join [ '', [ 'NitroEnclaveInstance-', !Ref 'AWS::StackName' ] ]
+
+  EnclaveKMSkey:
+    Type: AWS::KMS::Key
+    Properties:
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-default-1
+        Statement:
+        - Sid: Enable IAM User Permissions
+          Effect: Allow
+          Principal:
+            AWS:
+              Fn::Join:
+              - ''
+              - - 'arn:aws:iam::'
+                - Ref: AWS::AccountId
+                - :root
+          Action: 
+            - 'kms:*'
+          Resource: '*'
+        - Sid: Enable Enclave to decrypt
+          Effect: Deny
+          Principal:
+            AWS: '*'
+          Action: kms:Decrypt
+          Resource: '*'
+          Condition: 
+            StringNotEqualsIgnoreCase:
+              'kms:RecipientAttestation:PCR0': 'EXAMPLETOBEUPDATED'
+
+  EnclaveKMSkeyAlias:
+    Type: AWS::KMS::Alias
+    Properties: 
+      AliasName: alias/EnclaveKMSkey
+      TargetKeyId: !Ref EnclaveKMSkey
+
+  STSEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+        PrivateDnsEnabled: true
+        SecurityGroupIds: 
+          - !Ref EndpointSecurityGroup
+        ServiceName: 
+          !Join
+            - ''
+            - - 'com.amazonaws.'
+              - !Ref AWS::Region
+              - '.sts'
+        SubnetIds: 
+          - !Ref NitroEnclavesVPCPrivateSubnet
+        VpcEndpointType: Interface
+        VpcId: !Ref NitroEnclavesVPC
+
+  KMSEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+        PrivateDnsEnabled: true
+        SecurityGroupIds: 
+          - !Ref EndpointSecurityGroup
+        ServiceName: 
+          !Join
+            - ''
+            - - 'com.amazonaws.'
+              - !Ref AWS::Region
+              - '.kms'
+        SubnetIds: 
+          - !Ref NitroEnclavesVPCPrivateSubnet
+        VpcEndpointType: Interface
+        VpcId: !Ref NitroEnclavesVPC

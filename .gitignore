@@ -1,0 +1,4 @@
+**/*.eif
+.idea
+**/.DS_Store
+**/*.drawio
