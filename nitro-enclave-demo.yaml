@@ -18,7 +18,14 @@ Resources:
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
-          CidrIp: 10.10.0.0/16
+          CidrIp: 10.10.0.0/24
+          Description: Inbound HTTPS access from the NitroEnclavesVPCPrivateSubnet subnet
+        SecurityGroupEgress:
+          - IpProtocol: -1
+            FromPort: -1
+            ToPort: -1
+            CidrIp: "0.0.0.0/0"
+            Description: Outbound access for return traffic
 
   SSMEndpoint1:
     Type: AWS::EC2::VPCEndpoint
@@ -94,13 +101,90 @@ Resources:
         - Key: Name
           Value: "Nitro Enclaves VPC"
 
+  VPCFlowLogGroup:
+    DependsOn:
+      - NitroEnclavesVPCLogGroupKMSkey
+    Type: AWS::Logs::LogGroup
+    Properties:
+      KmsKeyId: !GetAtt NitroEnclavesVPCLogGroupKMSkey.Arn
+      RetentionInDays: 3
+  
+  VPCFlowLog:
+    Type: 'AWS::EC2::FlowLog'
+    Properties:
+      DeliverLogsPermissionArn: !GetAtt 'VPCFlowLogRole.Arn'
+      LogGroupName: !Ref VPCFlowLogGroup
+      ResourceId : !Ref NitroEnclavesVPC
+      ResourceType: VPC
+      TrafficType: ALL
+
+  VPCFlowLogRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - 'vpc-flow-logs.amazonaws.com'
+          Action: 'sts:AssumeRole'
+      Policies:
+      - PolicyName: 'flowlogs-policy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - 'logs:CreateLogGroup'
+            - 'logs:CreateLogStream'
+            - 'logs:PutLogEvents'
+            - 'logs:DescribeLogGroups'
+            - 'logs:DescribeLogStreams'
+            Resource: '*'
+
+  NitroEnclavesVPCLogGroupKMSkey:
+    Type: AWS::KMS::Key
+    Properties:
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-default-1
+        Statement:
+        - Sid: Allow administration of the key
+          Effect: Allow
+          Principal:
+            AWS:
+              Fn::Join:
+              - ''
+              - - 'arn:aws:iam::'
+                - Ref: AWS::AccountId
+                - :root
+          Action: kms:*
+          Resource: '*'
+        - Sid: Allow use of the key
+          Effect: Allow
+          Principal:
+            Service:
+              Fn::Join:
+              - ''
+              - - 'logs.'
+                - Ref: AWS::Region
+                - .amazonaws.com
+          Action:
+          - kms:Encrypt*
+          - kms:Decrypt*
+          - kms:ReEncrypt*
+          - kms:GenerateDataKey*
+          - kms:Describe*
+          Resource: '*'
+
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref NitroEnclavesVPC
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       CidrBlock: 10.10.1.0/24
-      MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
           Value: !Sub ${NitroEnclavesVPC} Public Subnet (AZ1)
@@ -111,7 +195,6 @@ Resources:
       VpcId: !Ref NitroEnclavesVPC
       AvailabilityZone: !Select [ 0, !GetAZs '' ]
       CidrBlock: 10.10.0.0/24
-      MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
           Value: !Sub ${NitroEnclavesVPC} Private Subnet (AZ1)
