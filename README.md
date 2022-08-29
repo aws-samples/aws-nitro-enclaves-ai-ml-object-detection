@@ -12,7 +12,7 @@ For more information, check out [AWS Nitro System](https://aws.amazon.com/ec2/ni
 
 ## Overview
 
-In this blog, we are going to use an image of airplanes which we will encrypt using AWS KMS envelope encryption with a symmetrical customer master key (CMK), however you can also use asymmetrical keys to perform your encryption / decryption if you choose so.
+In this project, we are going to use an image of airplanes which we will encrypt using AWS KMS envelope encryption with a symmetrical customer master key (CMK).
 
 <img src="./assets/images/Nitro-Enclaves-High-Level-Envelope-Encryption.jpg" width="1000" />
 
@@ -22,11 +22,9 @@ Once the image is encrypted, the “Client app” will read the file and send it
  
 The server running inside a Nitro Enclave, retrieves the encrypted data key which is encrypted as part of the image file and need to send it to AWS KMS to in order to decrypt it and subsequently be able to decrypt the image before running inference on it. 
 
-To allow the Nitro Enclave to communicate with external endpoints such as AWS KMS, we will need to run a proxy server on the host instance (vsock-proxy) and Traffic Forwarder in the Nitro Enclave. 
+To allow the Nitro Enclave to communicate with AWS KMS, we use the [KMS Tool](https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/docs/kmstool.md#kmstool-enclave-cli) which connects to AWS KMS and decrypts the encrypted key.
 
-Hence traffic initiated by the server app, such as the request to AWS KMS to decrypt the data key has to go through the Traffic Forwarder (on port 443) and from there to the vsock-proxy. The vsock-proxy will then route traffic to AWS KMS. 
-
-As part of the request to AWS KMS, the server app sends its unique cryptographically signed attestation document to AWS KMS to prove its identity. AWS KMS will validate the attestation document and if valid will decrypt the data key and return it to server app which can then use the data key to decrypt the airplanes image. 
+As part of the request to AWS KMS, the KMS Tool reads and sends its unique cryptographically signed attestation document to AWS KMS to prove its identity. AWS KMS will validate the attestation document and if valid will decrypt the data key and return it to server app which can then use the data key to decrypt the airplanes image. 
 
 Once the image is decrypted, the server app is able to run inference on the image using the pre-trained AI-ML model and detect the objects in the picture. 
 
@@ -145,7 +143,7 @@ vsock-proxy 8001 kms.ca-central-1.amazonaws.com 443 --config vsock-proxy-config.
 ```
 cd ~/aws-nitro-enclaves-ai-ml-object-detection/src
 ```
-3. Launch the client to send the encrypted image to the nitro enclave container and get the objects detected
+3. Launch the client to send the encrypted image to the nitro enclave container and get the objects detected. The first call might take about a minute or two to complete as the client waits for the server to boot up and load the TensorFlow model.
 ```
 python3 client.py --filePath ./images/air-show.jpg.encrypted | jq -C '.'
 ```
