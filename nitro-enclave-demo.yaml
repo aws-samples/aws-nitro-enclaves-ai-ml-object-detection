@@ -1,7 +1,12 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
-
-Description:  Nitro Enclave AI-ML Object Detection Demo. 
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: > 
+  **WARNING** 
+  This template creates an EC2 instance, VPC and related resources. 
+  You will be billed for the AWS resources used if you create a stack from this template.
+  This template is used for the Nitro Enclave AI-ML Object Detection Demo. 
 
 Parameters:
   LatestAmiId:
@@ -21,10 +26,10 @@ Resources:
           CidrIp: 10.10.0.0/24
           Description: Inbound HTTPS access from the NitroEnclavesVPCPrivateSubnet subnet
         SecurityGroupEgress:
-          - IpProtocol: -1
+          - IpProtocol: '-1'
             FromPort: -1
             ToPort: -1
-            CidrIp: "0.0.0.0/0"
+            CidrIp: '0.0.0.0/0'
             Description: Outbound access for return traffic
 
   SSMEndpoint1:
@@ -99,11 +104,9 @@ Resources:
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: "Nitro Enclaves VPC"
+          Value: 'Nitro Enclaves VPC'
 
   VPCFlowLogGroup:
-    DependsOn:
-      - NitroEnclavesVPCLogGroupKMSkey
     Type: AWS::Logs::LogGroup
     Properties:
       KmsKeyId: !GetAtt NitroEnclavesVPCLogGroupKMSkey.Arn
@@ -257,7 +260,7 @@ Resources:
       RoleName: 
         !Sub
           - 'SSM-access-${RandomGUID}'
-          - { RandomGUID: !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref AWS::StackId ]]]] }
+          - { RandomGUID: !Select [0, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId ]]]] }
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -270,30 +273,30 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       Policies: 
-        - PolicyName: "Allow-EC2Instance-KMS-Encrypt"
+        - PolicyName: 'Allow-EC2Instance-KMS-Encrypt'
           PolicyDocument: 
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement: 
-              - Effect: "Allow"
-                Action: "kms:Encrypt"
+              - Effect: 'Allow'
+                Action: 'kms:Encrypt'
                 Resource:
                   - !GetAtt EnclaveKMSkey.Arn
-              - Effect: "Allow"
-                Action: "kms:Decrypt"
+              - Effect: 'Allow'
+                Action: 'kms:Decrypt'
                 Resource:
                   - !GetAtt EnclaveKMSkey.Arn
-              - Effect: "Allow"
-                Action: "kms:GenerateDataKey"
+              - Effect: 'Allow'
+                Action: 'kms:GenerateDataKey'
                 Resource:
                   - !GetAtt EnclaveKMSkey.Arn
 
   SSMInstanceProfile:
-    Type: "AWS::IAM::InstanceProfile"
+    Type: 'AWS::IAM::InstanceProfile'
     Properties: 
       InstanceProfileName: SSM_access
-      Path: "/"
+      Path: '/'
       Roles: 
-        - Ref: "IAMRoleSSM"
+        - Ref: 'IAMRoleSSM'
 
   NitroEnclaveInstance:
     Type: AWS::EC2::Instance
@@ -309,7 +312,7 @@ Resources:
       EnclaveOptions:
         Enabled: true
       UserData:
-        Fn::Base64: !Sub |
+        Fn::Base64: |
           #!/bin/bash
           # install updates
           yum update -y
@@ -317,7 +320,7 @@ Resources:
           sudo yum install aws-nitro-enclaves-cli-devel -y
       Tags:
         - Key: Name
-          Value: !Join [ '', [ 'NitroEnclaveInstance-', !Ref 'AWS::StackName' ] ]
+          Value: !Join [ '', [ !Ref 'AWS::StackName','-', 'NitroEnclaveInstance' ] ]
 
   EnclaveKMSkey:
     Type: AWS::KMS::Key
