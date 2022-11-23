@@ -1,4 +1,4 @@
-tensorflow~=2.7.0
+tensorflow~=2.8.4
 tensorflow_hub
 numpy
 six~=1.16.0
