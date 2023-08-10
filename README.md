@@ -52,7 +52,7 @@ sudo yum install aws-nitro-enclaves-cli-devel -y
 ```bash
 nitro-cli --version
 ```
-3. You should have by now the Nitro CLI installed and the expected output will be `Nitro CLI 1.2.0`
+3. You should have by now the Nitro CLI installed and the expected output will be `Nitro CLI 1.2.2`
 
 4.	To download the application from GitHub and build a docker image, you need to first install Docker and Git by executing the following commands:
  ```bash
@@ -94,7 +94,7 @@ Note: The above step will take approximately 8-10 minutes to complete.
 ### Build and Run The Nitro Enclave Image
 To build the Nitro Enclave image of the workload, build a docker image of your application and then use the Nitro CLI to build the Nitro Enclave image:
 1.	Download TensorFlow pre-trained model:
-```
+```bash
 cd ~/aws-nitro-enclaves-ai-ml-object-detection/src
 mkdir -p models/faster_rcnn_openimages_v4_inception_resnet_v2_1 && cd models/
 wget -O tensorflow-model.tar.gz https://tfhub.dev/google/faster_rcnn/openimages_v4/inception_resnet_v2/1?tf-hub-format=compressed
