@@ -90,7 +90,8 @@ cd ~/aws-nitro-enclaves-ai-ml-object-detection/enclave-base-image
 sudo docker build ./ -t enclave_base
 ```
 Note: The above step will take approximately 8-10 minutes to complete.
-Build and Run The Nitro Enclave Image
+
+### Build and Run The Nitro Enclave Image
 To build the Nitro Enclave image of the workload, build a docker image of your application and then use the Nitro CLI to build the Nitro Enclave image:
 1.	Download TensorFlow pre-trained model:
 ```
