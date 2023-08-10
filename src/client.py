@@ -6,7 +6,7 @@
 
 # Usage Example
 # cd ./src
-# python3 client-uc4.py \
+# python3 client.py \
 # --filePath ./images/air-show.jpg.encrypted --debug
 
 """
