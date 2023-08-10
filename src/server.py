@@ -62,6 +62,7 @@ def decrypt_cipher(access, secret, token, ciphertext, region):
     proc = subprocess.Popen(
         [
             "/app/kmstool_enclave_cli",
+            "decrypt",
             "--region", region,
             "--proxy-port", KMS_PROXY_PORT,
             "--aws-access-key-id", access,
@@ -75,8 +76,8 @@ def decrypt_cipher(access, secret, token, ciphertext, region):
 
     ret = proc.communicate()
     if ret[0]:
-        b64text = proc.communicate()[0].decode()
-        plaintext = b64text
+        ret0 = proc.communicate()[0].decode()
+        plaintext = ret0.split(":")[1]
         return plaintext
     else:
         return "KMS Error. Decryption Failed."
