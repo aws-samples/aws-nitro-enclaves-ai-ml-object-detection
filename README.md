@@ -52,7 +52,7 @@ sudo yum install aws-nitro-enclaves-cli-devel -y
 ```bash
 nitro-cli --version
 ```
-3. You should have by now the Nitro CLI installed and the expected output will be `Nitro CLI 1.2.2`
+3. You should have by now the Nitro CLI installed and the expected output will be `Nitro CLI 1.3.1`
 
 4.	To download the application from GitHub and build a docker image, you need to first install Docker and Git by executing the following commands:
  ```bash
@@ -120,9 +120,9 @@ Example PCR0:
 }
 ```
 5.	Launch the Nitro Enclave container using the Enclave Image File (.eif) generated in the previous step and allocate resources to it. You should allocate at least 4 times the EIF file size for enclave memory. This is necessary because the tmpfs filesystem uses half of the memory and the remainder of the memory is used to uncompress the initial initramfs where the application executable resides. For CPU allocation, you should allocate CPU in full cores i.e. 2x vCPU for x86 hyper-threaded instances. 
-In our case, we are going to allocate 14GB or 14,366 MB for the enclave and 2vCPU:
+In our case, we are going to allocate 20GB or 20,480 MB for the enclave and 2vCPU:
 ```bash
-sudo nitro-cli run-enclave --cpu-count 2 --memory 14336 --eif-path nitro-enclave-container-ai-ml.eif
+sudo nitro-cli run-enclave --cpu-count 2 --memory 20480 --eif-path nitro-enclave-container-ai-ml.eif
 ```
 Note: Allow a few seconds for the server to boot up prior to running the Client app in the below section “Object Detection using Nitro Enclaves”. 
 ### Update the KMS Key Policy to Include the PCR0 Hash
@@ -134,11 +134,24 @@ Now that you have the PCR0 value for your enclave image, update the KMS key poli
 5.	Scroll to the bottom of the key policy and replace the value of "EXAMPLETOBEUPDATED" for the "kms:RecipientAttestation:PCR0" key with the PCR0 hash you noted in the previous section and click "Save changes"
 ## AI/ML Object Detection using a Nitro Enclave
 Now that you have an enclave image file, run the components of the solution.
+
+### Install Python 3.9 as a Pre-requisite
+1. Run  the following commands:
+```bash
+sudo yum install gcc openssl-devel bzip2-devel libffi-devel -y
+cd /opt 
+sudo wget https://www.python.org/ftp/python/3.9.16/Python-3.9.16.tgz 
+sudo tar xzf Python-3.9.16.tgz 
+cd Python-3.9.16 
+sudo ./configure --enable-optimizations 
+sudo make altinstall 
+```
+
 ### Requirements Installation for Client App
 1.	Install the python requirements using the following command:
 ```bash
 cd ~/aws-nitro-enclaves-ai-ml-object-detection/src
-pip3 install -r requirements.txt
+pip3.9 install -r requirements.txt
 ```
 2.	Set the region that your CloudFormation stack is deployed in. In our case we selected Canada (Centra)
 ```bash
@@ -146,7 +159,7 @@ CFN_REGION=ca-central-1
 ```
 3.	Run the following command to encrypt the image using the AWS KMS key “EnclaveKMSKey”, make sure to replace “ca-central-1” with the region where you deployed your CloudFormation template:
 ```bash
-python3 ./envelope-encryption/encryptor.py --filePath ./images/air-show.jpg --cmkId alias/EnclaveKMSkey --region $CFN_REGION
+python3.9 ./envelope-encryption/encryptor.py --filePath ./images/air-show.jpg --cmkId alias/EnclaveKMSkey --region $CFN_REGION
 ```
 4.	Verify that the output contains: file encrypted? True
 Note: The previous command generates two files: an encrypted image file and an encrypted data key file. The data key file is generated so we can demonstrate an attempt from the parent instance at decrypting the data key. 
@@ -161,7 +174,7 @@ vsock-proxy 8001 "kms.$CFN_REGION.amazonaws.com" 443 --config vsock-proxy-config
 Send the encrypted image to the enclave to decrypt the image and use the AI/ML model to detect objects and return a summary of the objects detected: 
 ```bash
 cd ~/aws-nitro-enclaves-ai-ml-object-detection/src
-python3 client.py --filePath ./images/air-show.jpg.encrypted | jq -C '.'
+python3.9 client.py --filePath ./images/air-show.jpg.encrypted | jq -C '.'
 ```
 The previous step takes around a minute to complete when first called. Inside the enclave, the server application decrypts the image, runs it through the AI/ML model to generate a list of objects detected and returns that list to the client application.
 
